@@ -1,0 +1,6 @@
+{
+  "name": "Freelance Control Panel",
+  "description": "Sistema de gestión financiera, tracker de tiempo y análisis de rentabilidad para freelancers en CLP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
