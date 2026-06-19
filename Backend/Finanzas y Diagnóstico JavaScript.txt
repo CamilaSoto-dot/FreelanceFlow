@@ -1,0 +1,102 @@
+Finanzas y Diagnóstico JavaScript
+
+import * as db from '../db/index.js';
+
+/**
+ * GET /api/resumen
+ * Retorna las métricas consolidadas del Freelancer
+ */
+export const getResumen = async (req, res) => {
+  try {
+    // 1. Consulta consolidando montos de la tabla de facturas
+    // 'status' se divide comúnmente en 'cobrada' o 'pagada' (ingresos recibidos) y 'pendiente' (por cobrar)
+    const invoicesQuery = `
+      SELECT 
+        COALESCE(SUM(amount), 0) AS total_facturado,
+        COALESCE(SUM(CASE WHEN LOWER(status) IN ('pago', 'pagada', 'paid', 'cobrada') THEN amount ELSE 0 END), 0) AS ingresos_recibidos,
+        COALESCE(SUM(CASE WHEN LOWER(status) IN ('pendiente', 'unpaid', 'pending') THEN amount ELSE 0 END), 0) AS cuentas_por_cobrar
+      FROM invoices;
+    `;
+
+    // 2. Consulta de horas cronometradas acumuladas
+    const timeQuery = `
+      SELECT COALESCE(SUM(hours), 0) AS horas_cronometradas
+      FROM time_logs;
+    `;
+
+    // Ejecución paralela eficiente para reducir tiempos de respuesta
+    const [invoicesResult, timeResult] = await Promise.all([
+      db.query(invoicesQuery),
+      db.query(timeQuery)
+    ]);
+
+    const metrics = invoicesResult.rows[0];
+    const totalHours = parseFloat(timeResult.rows[0].horas_cronometradas);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalFacturado: parseFloat(metrics.total_facturado),
+        ingresosRecibidos: parseFloat(metrics.ingresos_recibidos),
+        cuentasPorCobrar: parseFloat(metrics.cuentas_por_cobrar),
+        horasCronometradas: totalHours
+      }
+    });
+  } catch (error) {
+    console.error('Error en getResumen:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al procesar el resumen financiero.'
+    });
+  }
+};
+
+/**
+ * GET /api/diagnostico
+ * Retorna el rendimiento trimestral acumulando facturas y cobros para Q1, Q2 y Q3
+ */
+export const getDiagnostico = async (req, res) => {
+  try {
+    // Clasifica las facturas correspondientes por mes y las mapea en trimestres (Q1, Q2, Q3)
+    const queryStr = `
+      SELECT 
+        CASE 
+          WHEN EXTRACT(MONTH FROM issue_date) BETWEEN 1 AND 3 THEN 'Q1'
+          WHEN EXTRACT(MONTH FROM issue_date) BETWEEN 4 AND 6 THEN 'Q2'
+          WHEN EXTRACT(MONTH FROM issue_date) BETWEEN 7 AND 9 THEN 'Q3'
+          ELSE 'Q4'
+        END AS trimestre,
+        COALESCE(SUM(amount), 0) AS total_facturado,
+        COALESCE(SUM(CASE WHEN LOWER(status) IN ('pago', 'pagada', 'paid', 'cobrada') THEN amount ELSE 0 END), 0) AS ingresos_recibidos
+      FROM invoices
+      GROUP BY trimestre
+      ORDER BY trimestre;
+    `;
+
+    const result = await db.query(queryStr);
+
+    // Valores iniciales por si algún trimestre aún no tiene datos registrados
+    const trimestres = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
+    const cobros = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
+
+    result.rows.forEach(row => {
+      trimestres[row.trimestre] = parseFloat(row.total_facturado);
+      cobros[row.trimestre] = parseFloat(row.ingresos_recibidos);
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: [
+        { name: 'Q1', facturado: trimestres.Q1, recibido: cobros.Q1 },
+        { name: 'Q2', facturado: trimestres.Q2, recibido: cobros.Q2 },
+        { name: 'Q3', facturado: trimestres.Q3, recibido: cobros.Q3 }
+      ]
+    });
+  } catch (error) {
+    console.error('Error en getDiagnostico:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al procesar el diagnóstico por trimestres.'
+    });
+  }
+};

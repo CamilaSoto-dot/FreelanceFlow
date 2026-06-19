@@ -1,0 +1,68 @@
+Tracker de Horas JavaScript
+
+import * as db from '../db/index.js';
+
+/**
+ * POST /api/horas
+ * Guarda una nueva sesión cronometrada de trabajo
+ */
+export const registrarHoras = async (req, res) => {
+  try {
+    const { project_id, hours, description, date } = req.body;
+
+    // 1. Validaciones requeridas
+    if (!project_id || !hours || !description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faltan parámetros obligatorios: project_id, hours, description'
+      });
+    }
+
+    if (isNaN(hours) || parseFloat(hours) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'El número de horas registradas debe ser mayor a 0.'
+      });
+    }
+
+    // 2. Comprobar que el proyecto asociado exista
+    const checkProject = await db.query('SELECT id FROM projects WHERE id = $1', [project_id]);
+    if (checkProject.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'El proyecto indicado no existe.'
+      });
+    }
+
+    // 3. Insertar el log de horas con sanitización de parámetros (evita inyecciones)
+    const insertSQL = `
+      INSERT INTO time_logs (project_id, hours, description, date)
+      VALUES ($1, $2, $3, COALESCE($4, CURRENT_DATE))
+      RETURNING id, project_id, hours, description, date, created_at;
+    `;
+
+    const values = [project_id, parseFloat(hours), description, date || null];
+    const result = await db.query(insertSQL, values);
+    const nuevoLog = result.rows[0];
+
+    return res.status(201).json({
+      success: true,
+      message: 'Horas cronometradas registradas correctamente.',
+      data: {
+        id: nuevoLog.id,
+        proyectoId: nuevoLog.project_id,
+        horas: parseFloat(nuevoLog.hours),
+        descripcion: nuevoLog.description,
+        fecha: nuevoLog.date,
+        creadoEn: nuevoLog.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al guardar registro de horas:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error de base de datos al guardar las horas.'
+    });
+  }
+};

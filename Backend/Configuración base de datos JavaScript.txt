@@ -1,0 +1,40 @@
+Configuración base de datos JavaScript
+
+import pg from 'pg';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const { Pool } = pg;
+
+// Inicializamos el Pool de conexiones usando variables seguras del ambiente
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  // Configuraciones recomendadas para producción
+  max: 20, // Máximo de clientes concurrentes en el pool
+  idleTimeoutMillis: 30000, // Tiempo límite para cerrar conexiones inactivas
+  connectionTimeoutMillis: 2000, // Tiempo límite para restaurar conexiones caídas
+});
+
+// Eventos de monitoreo
+pool.on('connect', () => {
+  console.log('🔄 Conexión activa reutilizada o creada en el Pool de Postgres');
+});
+
+pool.on('error', (err) => {
+  console.error('❌ Error inesperado e inactivo en el cliente de Postgres:', err);
+});
+
+/**
+ * Helper genérico de consulta SQL. Recibe el string de SQL y parámetros sanitizados.
+ * Previene ataques de SQL Injection.
+ */
+export const query = (text, params) => {
+  return pool.query(text, params);
+};
+
+export default pool;

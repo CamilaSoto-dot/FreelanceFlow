@@ -1,0 +1,13 @@
+freelanceflow-backend/
+├── .env                  # Variables de entorno y credenciales seguras
+├── package.json          # Script de arranque y dependencias Node.js
+├── server.js             # Punto de entrada principal y configuración de Express
+├── /db
+│   └── index.js          # Configuración del Pool de conexiones de PostgreSQL
+├── /routes
+│   └── api.js            # Definición centralizada de endpoints REST
+└── /controllers
+    ├── financialController.js  # Lógica para /api/resumen y /api/diagnostico
+    ├── projectController.js    # Lógica para /api/proyectos
+    ├── invoiceController.js    # Lógica para /api/facturas
+    └── timeLogController.js    # Lógica para el registro de horas (POST /api/horas)

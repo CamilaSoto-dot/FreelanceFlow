@@ -1,0 +1,46 @@
+Facturas JavaScript
+
+import * as db from '../db/index.js';
+
+/**
+ * GET /api/facturas
+ * Muestra el catálogo de facturas pendientes y completadas vinculadas a su proyecto
+ */
+export const getFacturas = async (req, res) => {
+  try {
+    const queryStr = `
+      SELECT 
+        i.id AS factura_id,
+        i.invoice_number,
+        i.amount AS monto,
+        i.status AS estado,
+        i.issue_date,
+        p.name AS proyecto_nombre
+      FROM invoices i
+      INNER JOIN projects p ON i.project_id = p.id
+      ORDER BY i.issue_date DESC;
+    `;
+
+    const result = await db.query(queryStr);
+
+    const facturas = result.rows.map(row => ({
+      id: row.factura_id,
+      numero: row.invoice_number,
+      monto: parseFloat(row.monto),
+      estado: row.estado,
+      fechaEmision: row.issue_date,
+      proyectoLabel: row.proyecto_nombre
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: facturas
+    });
+  } catch (error) {
+    console.error('Error en getFacturas:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener las facturas.'
+    });
+  }
+};

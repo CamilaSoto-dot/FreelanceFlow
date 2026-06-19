@@ -1,0 +1,23 @@
+Configuración de Rutas JavaScript
+
+import { Router } from 'express';
+import { getResumen, getDiagnostico } from '../controllers/financialController.js';
+import { getProyectos } from '../controllers/projectController.js';
+import { getFacturas } from '../controllers/invoiceController.js';
+import { registrarHoras } from '../controllers/timeLogController.js';
+
+const router = Router();
+
+// Endpoints consolidados financieros
+router.get('/resumen', getResumen);
+router.get('/diagnostico', getDiagnostico);
+
+// Endpoints de catálogos y gestión
+router.get('/proyectos', getProyectos);
+router.get('/facturas', getFacturas);
+
+// Registro de horas en el tracker
+router.post('/horas', registrarHoras);
+
+export default router;
+

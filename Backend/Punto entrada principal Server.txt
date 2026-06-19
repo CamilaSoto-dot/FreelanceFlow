@@ -1,0 +1,46 @@
+Punto entrada principal Server
+
+import express from 'express';
+import dotenv from 'dotenv';
+import apiRouter from './routes/api.js';
+
+// Cargar variables definidas en .env
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middlewares obligatorios
+app.use(express.json()); // Permite capturar bodies tipo JSON
+app.use(express.urlencoded({ extended: true }));
+
+// Middleware para registrar logs de peticiones entrantes
+app.use((req, res, next) => {
+  console.log(`[${new Date().toLocaleTimeString()}] 📡 ${req.method} en ${req.url}`);
+  next();
+});
+
+// Enlazar módulo de rutas con prefijo común '/api'
+app.use('/api', apiRouter);
+
+// Middleware centralizado para control de errores inesperados
+app.use((err, req, res, next) => {
+  console.error('💥 Error global no capturado:', err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Hubo un error del servidor. Por favor, verifique los logs del backend para más detalles.'
+  });
+});
+
+// Inicialización de la escucha del servidor
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor de FreelanceFlow iniciado de manera exitosa.`);
+  console.log(`🔗 Acceso local: http://localhost:${PORT}`);
+  console.log(`📌 Endpoints mapeados correctamente para Cami Soto:`);
+  console.log(`   - GET  /api/resumen`);
+  console.log(`   - GET  /api/proyectos`);
+  console.log(`   - GET  /api/facturas`);
+  console.log(`   - GET  /api/diagnostico`);
+  console.log(`   - POST /api/horas`);
+});
+

@@ -1,0 +1,49 @@
+Proyectos JavaScript
+
+import * as db from '../db/index.js';
+
+/**
+ * GET /api/proyectos
+ * Lista todos los proyectos adjuntando datos legibles de sus clientes
+ */
+export const getProyectos = async (req, res) => {
+  try {
+    const queryStr = `
+      SELECT 
+        p.id AS proyecto_id,
+        p.name AS proyecto_nombre,
+        p.budget AS presupuesto,
+        c.id AS cliente_id,
+        c.name AS cliente_nombre,
+        c.email AS cliente_email
+      FROM projects p
+      LEFT JOIN clients c ON p.client_id = c.id
+      ORDER BY p.name ASC;
+    `;
+
+    const result = await db.query(queryStr);
+
+    const proyectos = result.rows.map(row => ({
+      id: row.proyecto_id,
+      nombre: row.proyecto_nombre,
+      presupuesto: parseFloat(row.presupuesto),
+      cliente: {
+        id: row.cliente_id,
+        nombre: row.cliente_nombre,
+        email: row.cliente_email
+      }
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: proyectos.length,
+      data: proyectos
+    });
+  } catch (error) {
+    console.error('Error en getProyectos:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al listar los proyectos.'
+    });
+  }
+};
