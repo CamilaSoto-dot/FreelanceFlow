@@ -5,6 +5,7 @@ import { Client, Project, Payment, TimeEntry } from '../types';
 interface DataIngestProps {
   clients: Client[];
   projects: Project[];
+  timeEntries: TimeEntry[];
   onAddClient: (newClient: Omit<Client, 'id'>) => string;
   onAddProject: (newProj: Omit<Project, 'id'>) => void;
   onAddPayment: (newPay: Omit<Payment, 'id'>) => void;
@@ -14,6 +15,7 @@ interface DataIngestProps {
 export default function DataIngest({
   clients,
   projects,
+  timeEntries,
   onAddClient,
   onAddProject,
   onAddPayment,
@@ -27,6 +29,7 @@ export default function DataIngest({
   // Client form state
   const [clientName, setClientName] = useState('');
   const [clientCategory, setClientCategory] = useState('Branding & Identidad Corporativa');
+  const [customCategory, setCustomCategory] = useState(''); // Custom category/rubro entered manually
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
 
@@ -43,6 +46,11 @@ export default function DataIngest({
   const [payStatus, setPayStatus] = useState<'pagado' | 'pendiente'>('pendiente');
   const [payMonth, setPayMonth] = useState<Payment['monthOfService']>('Enero');
   const [payNotes, setPayNotes] = useState('');
+
+  // Payment calculation settings (Requirement 3)
+  const [payAmountMode, setPayAmountMode] = useState<'manual' | 'calculated'>('manual');
+  const [rateCalcSource, setRateCalcSource] = useState<'project_rate' | 'custom_rate'>('project_rate');
+  const [customHourlyRate, setCustomHourlyRate] = useState<string>('30000');
 
   // Time manual entry state
   const [timeClientId, setTimeClientId] = useState('');
@@ -80,6 +88,45 @@ export default function DataIngest({
     }
   }, [timeClientId, projects]);
 
+  // Dynamic automatic fee calculator (Requirement 3)
+  const getProjectHoursAndAmount = () => {
+    if (!payProjId) return { hours: 0, rate: 0, total: 0 };
+    const projTimes = timeEntries.filter(t => t.projectId === payProjId);
+    const totalSeconds = projTimes.reduce((sum, t) => sum + t.durationSeconds, 0);
+    const hours = totalSeconds / 3600;
+
+    let rate = 30000; // standard default rate
+    if (rateCalcSource === 'project_rate') {
+      try {
+        const customRatesStr = localStorage.getItem('freelance_project_rates');
+        if (customRatesStr) {
+          const rates = JSON.parse(customRatesStr);
+          if (rates[payProjId] !== undefined && rates[payProjId] > 0) {
+            rate = Number(rates[payProjId]);
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing stored project rates:", err);
+      }
+    } else {
+      rate = parseFloat(customHourlyRate) || 0;
+    }
+
+    return {
+      hours,
+      rate,
+      total: Math.round(hours * rate)
+    };
+  };
+
+  const calculatedObj = getProjectHoursAndAmount();
+
+  React.useEffect(() => {
+    if (payAmountMode === 'calculated') {
+      setPayAmount(calculatedObj.total.toString());
+    }
+  }, [payAmountMode, payProjId, rateCalcSource, customHourlyRate, timeEntries]);
+
   // Form Submissions
   const handleAddClientSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,15 +134,17 @@ export default function DataIngest({
       showMsg('Por favor completa los campos obligatorios de Cliente.', 'error');
       return;
     }
+    const finalCategory = clientCategory === 'custom' ? customCategory.trim() : clientCategory;
     const id = onAddClient({
       name: clientName,
-      category: clientCategory,
+      category: finalCategory || 'Otros Servicios',
       email: clientEmail,
       phone: clientPhone,
     });
     setClientName('');
     setClientEmail('');
     setClientPhone('');
+    setCustomCategory('');
     showMsg(`Nuevo cliente "${clientName}" registrado exitosamente. (ID generado: ${id})`, 'success');
   };
 
@@ -419,7 +468,7 @@ export default function DataIngest({
             Ingreso de Datos
           </h3>
           <p className="text-xs text-gray-400 mt-1">
-            Registra paso a paso las variables operativas de Lucía Freelance.
+            Registra paso a paso las variables operativas en el sistema de control de cobros.
           </p>
         </div>
 
@@ -499,18 +548,39 @@ export default function DataIngest({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Especialidad / Categoría</label>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Especialidad / Rubro de la Empresa</label>
                 <select
                   value={clientCategory}
                   onChange={(e) => setClientCategory(e.target.value)}
                   className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-[#1A1D20] focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-[#4F46E5] transition shadow-xs"
                 >
-                  <option value="Branding & Identidad Corporativa">Branding & Identidad</option>
-                  <option value="Diseño Web E-commerce">Diseño Web E-commerce</option>
-                  <option value="Soporte de Diseño Continuo">Soporte Continuo</option>
-                  <option value="Diseño Social Media">Diseño Social Media</option>
-                  <option value="Ilustración & Editorial">Ilustración & Editorial</option>
+                  <option value="Branding & Identidad Corporativa">Branding & Identidad Corporativa</option>
+                  <option value="Diseño Web & E-commerce">Diseño Web & E-commerce</option>
+                  <option value="Consultoría de Software & Desarrollos TI">Consultoría de Software & Desarrollos TI</option>
+                  <option value="Marketing Digital & Campañas de Redes">Marketing Digital & Campañas de Redes</option>
+                  <option value="Servicios Legales y Asesoría Tributaria">Servicios Legales y Asesoría Tributaria</option>
+                  <option value="Arquitectura, Construcción & Ingeniería de Obras">Arquitectura, Construcción & Ingeniería de Obras</option>
+                  <option value="Soporte Continuo & Mantenimientos">Soporte Continuo & Mantenimientos</option>
+                  <option value="Servicios Médicos, Salud & Bienestar">Servicios Médicos, Salud & Bienestar</option>
+                  <option value="Educación, Capacitación & Cursos Formativos">Educación, Capacitación & Cursos Formativos</option>
+                  <option value="Comercio Mayorista / Minorista & Logística">Comercio Mayorista / Minorista & Logística</option>
+                  <option value="Finanzas, Contabilidad & Auditorías Contables">Finanzas, Contabilidad & Auditorías Contables</option>
+                  <option value="custom">Otro (Escribir rubro manualmente...)</option>
                 </select>
+
+                {clientCategory === 'custom' && (
+                  <div className="mt-3 animate-fadeIn">
+                    <label className="block text-[10px] font-bold text-[#4F46E5] uppercase tracking-wider mb-1">Escribe tu Categoría / Rubro Personalizado *</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Agencia de Innovación, Productora Audiovisual, Freelancer..."
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      className="w-full bg-white border border-indigo-205 rounded-xl px-4 py-2 text-sm text-[#1A1D20] focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-[#4F46E5] transition shadow-xs"
+                      required
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -655,9 +725,89 @@ export default function DataIngest({
               </div>
             </div>
 
+            {/* Selector de modo de cobro (Requirement 3) */}
+            <div className="bg-gray-50 border border-gray-150 p-4.5 rounded-xl space-y-3 shadow-xs">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Modo de Cobro (CLP)</label>
+              <div className="grid grid-cols-2 gap-3.5">
+                <button
+                  type="button"
+                  onClick={() => setPayAmountMode('manual')}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-center border cursor-pointer transition ${
+                    payAmountMode === 'manual'
+                      ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold shadow-xs'
+                      : 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200'
+                  }`}
+                >
+                  Monto Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayAmountMode('calculated')}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-center border cursor-pointer transition flex items-center justify-center gap-1.5 ${
+                    payAmountMode === 'calculated'
+                      ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold shadow-xs'
+                      : 'bg-white hover:bg-gray-50 text-gray-600 border-gray-200'
+                  }`}
+                >
+                  Calcular por Horas × Tarifa
+                </button>
+              </div>
+
+              {payAmountMode === 'calculated' && (
+                <div className="bg-white border border-indigo-100 p-4 rounded-xl space-y-3 animate-fadeIn text-xs mt-2">
+                  <div className="flex justify-between items-center bg-indigo-50/50 p-3 rounded-lg border border-indigo-50">
+                    <span className="font-semibold text-gray-700">Horas registradas en este proyecto:</span>
+                    <span className="font-mono font-bold text-indigo-700 text-sm bg-white px-2 py-0.5 rounded-md border border-indigo-100">
+                      {calculatedObj.hours.toFixed(1)} hrs
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 uppercase font-black mb-1 tracking-wider">Precio por Hora:</label>
+                      <select
+                        value={rateCalcSource}
+                        onChange={(e) => setRateCalcSource(e.target.value as any)}
+                        className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-[#1A1D20] focus:outline-none focus:border-[#4F46E5]"
+                      >
+                        <option value="project_rate">Tarifa Contratada del Proyecto</option>
+                        <option value="custom_rate">Tarifa Referencial por Hora</option>
+                      </select>
+                    </div>
+
+                    {rateCalcSource === 'custom_rate' && (
+                      <div className="animate-fadeIn">
+                        <label className="block text-[10px] text-gray-400 uppercase font-black mb-1 tracking-wider">Escribe Tarifa por Hora (CLP):</label>
+                        <input
+                          type="number"
+                          value={customHourlyRate}
+                          onChange={(e) => setCustomHourlyRate(e.target.value)}
+                          className="w-full bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-xs text-[#1A1D20] focus:outline-none focus:border-[#4F46E5]"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2.5 border-t border-gray-150 flex items-center justify-between text-xs font-medium text-gray-500">
+                    <span>Fórmula:</span>
+                    <span className="font-mono text-gray-800">
+                      {calculatedObj.hours.toFixed(1)} hrs × ${calculatedObj.rate.toLocaleString('es-CL')}/hr
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-900 bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg">
+                    <span>Monto Calculado:</span>
+                    <span className="font-mono text-emerald-700 text-sm">
+                      ${calculatedObj.total.toLocaleString('es-CL')} CLP
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Monto Cobro (CLP) *</label>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Monto Final Cobro (CLP) *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <span className="text-gray-400 font-semibold text-sm">$</span>
@@ -667,7 +817,12 @@ export default function DataIngest({
                     placeholder="Monto"
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value)}
-                    className="w-full bg-white border border-gray-300 rounded-xl pl-8 pr-4 py-2.5 text-sm text-[#1A1D20] focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-[#4F46E5] transition shadow-xs"
+                    disabled={payAmountMode === 'calculated'}
+                    className={`w-full border rounded-xl pl-8 pr-4 py-2.5 text-sm font-semibold transition shadow-xs ${
+                      payAmountMode === 'calculated'
+                        ? 'bg-gray-100/80 border-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-white border-gray-300 text-[#1A1D20] focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-[#4F46E5]'
+                    }`}
                     required
                   />
                 </div>
@@ -703,7 +858,7 @@ export default function DataIngest({
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Comentarios / Notas Internas</label>
               <input
                 type="text"
-                placeholder="Ej: Cuota pendiente desde Enero, Lucía insiste por e-mail"
+                placeholder="Ej: Ajuste de horas de desarrollo o cuota de servicio pendiente"
                 value={payNotes}
                 onChange={(e) => setPayNotes(e.target.value)}
                 className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-[#1A1D20] focus:outline-none focus:ring-2 focus:ring-indigo-150 focus:border-[#4F46E5] transition shadow-xs"
@@ -849,7 +1004,7 @@ export default function DataIngest({
             <h4 className="text-sm font-bold text-gray-900">Preset de Simulación Rápida</h4>
           </div>
           <p className="text-xs text-gray-500">
-            ¿No tienes archivos a mano? Haz clic para simular que cargaste un archivo de control de Lucía:
+            ¿No tienes archivos a mano? Haz clic para simular la carga de un archivo de auditoría del sistema:
           </p>
 
           <div className="space-y-2.5">
@@ -859,7 +1014,7 @@ export default function DataIngest({
             >
               <div className="flex items-center gap-2 min-w-0">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="truncate">deudas_pendientes_lucia.csv</span>
+                <span className="truncate">deudas_pendientes.csv</span>
               </div>
               <span className="text-[10px] bg-red-50 text-[#EF4444] border border-red-50 px-2.5 py-0.5 rounded-lg font-bold uppercase tracking-wider shrink-0">Cobrar</span>
             </button>

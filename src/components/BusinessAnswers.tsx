@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle, ChevronRight, TrendingUp, AlertTriangle, AlertCircle, CircleCheck, Info, Sparkles, Award, Clock } from 'lucide-react';
+import { HelpCircle, ChevronRight, TrendingUp, AlertTriangle, AlertCircle, CircleCheck, Info, Sparkles, Award, Clock, Calendar } from 'lucide-react';
 import { Client, Project, Payment, TimeEntry } from '../types';
 
 interface BusinessAnswersProps {
@@ -18,6 +18,12 @@ export default function BusinessAnswers({
   const [activeTab, setActiveTab] = useState<'q1' | 'q2' | 'q3'>('q1');
   const [analyzing, setAnalyzing] = useState<boolean>(false);
 
+  // States for diagnostic filters (Requirement 1 & 4)
+  const [filterType, setFilterType] = useState<'todo' | 'mensual' | 'trimestral' | 'anual'>('todo');
+  const [selectedMonth, setSelectedMonth] = useState<string>('Todos');
+  const [selectedQuarter, setSelectedQuarter] = useState<string>('Q1');
+  const [selectedYear, setSelectedYear] = useState<string>('2026');
+
   // Trigger analytical simulation delay
   const handleRecalculate = () => {
     setAnalyzing(true);
@@ -29,13 +35,44 @@ export default function BusinessAnswers({
   // ----------------------------------------------------
   // PREGUNTA 1: Balance Mensual (Mapeo de Facturado vs Cuentas Por Cobrar)
   // ----------------------------------------------------
-  // Let's filter or aggregate payments
-  const totalFacturado = payments.reduce((sum, p) => sum + p.amount, 0);
-  const totalPagado = payments.filter(p => p.status === 'pagado').reduce((sum, p) => sum + p.amount, 0);
-  const totalCuentasPorCobrar = payments.filter(p => p.status === 'pendiente').reduce((sum, p) => sum + p.amount, 0);
+  // Filtered payments specifically for the Diagnostic Balance (Requirement 1 requested specifically here)
+  const filteredPaymentsQ1 = React.useMemo(() => {
+    return payments.filter(p => {
+      if (filterType === 'todo') return true;
+      
+      if (filterType === 'mensual') {
+        if (selectedMonth === 'Todos') return true;
+        return p.monthOfService === selectedMonth;
+      }
+      
+      if (filterType === 'trimestral') {
+        if (selectedQuarter === 'Q1') {
+          return ['Enero', 'Febrero', 'Marzo'].includes(p.monthOfService);
+        } else if (selectedQuarter === 'Q2') {
+          return ['Abril', 'Mayo', 'Junio'].includes(p.monthOfService);
+        } else if (selectedQuarter === 'Q3') {
+          return ['Julio', 'Agosto', 'Septiembre'].includes(p.monthOfService);
+        } else if (selectedQuarter === 'Q4') {
+          return ['Octubre', 'Noviembre', 'Diciembre'].includes(p.monthOfService);
+        }
+        return true;
+      }
+      
+      if (filterType === 'anual') {
+        return true;
+      }
+      
+      return true;
+    });
+  }, [payments, filterType, selectedMonth, selectedQuarter, selectedYear]);
 
-  // Debt percentage
-  const debtPercentage = totalFacturado > 0 ? (totalCuentasPorCobrar / totalFacturado) * 105 : 0;
+  // Aggregate stats based on filtered subsets for diagnostic integrity
+  const totalFacturado = filteredPaymentsQ1.reduce((sum, p) => sum + p.amount, 0);
+  const totalPagado = filteredPaymentsQ1.filter(p => p.status === 'pagado').reduce((sum, p) => sum + p.amount, 0);
+  const totalCuentasPorCobrar = filteredPaymentsQ1.filter(p => p.status === 'pendiente').reduce((sum, p) => sum + p.amount, 0);
+
+  // Debt percentage of selected period
+  const debtPercentage = totalFacturado > 0 ? (totalCuentasPorCobrar / totalFacturado) * 100 : 0;
 
   // ----------------------------------------------------
   // PREGUNTA 2: Rentabilidad de Clientes (Cruce de Datos)
@@ -91,7 +128,7 @@ export default function BusinessAnswers({
             Lógica de Negocio y Análisis de Decisiones
           </h3>
           <p className="text-xs text-gray-400 mt-1">
-            Respuestas dinámicas obligatorias para resolver el caos financiero de Lucía.
+            Respuestas dinámicas de control contable y optimización de cartera financiera.
           </p>
         </div>
 
@@ -181,6 +218,95 @@ export default function BusinessAnswers({
                 <HelpCircle className="w-5 h-5 text-gray-400" />
               </div>
 
+              {/* FILTROS DE PERÍODO Y DEUDAS (Punto de Diagnóstico de Balance) */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-2xs space-y-3.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <Calendar className="w-4.5 h-4.5 text-[#4F46E5]" />
+                  <span>Filtrar Período de Diagnóstico actual</span>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-[11px] font-bold">
+                    <button
+                      onClick={() => setFilterType('todo')}
+                      className={`px-3 py-1 rounded-md transition cursor-pointer border-0 ${
+                        filterType === 'todo'
+                          ? 'bg-white text-[#4F46E5] shadow-3xs font-extrabold'
+                          : 'text-gray-500 hover:text-gray-900 bg-transparent'
+                      }`}
+                    >
+                      General
+                    </button>
+                    <button
+                      onClick={() => { setFilterType('mensual'); setSelectedMonth('Todos'); }}
+                      className={`px-3 py-1 rounded-md transition cursor-pointer border-0 ${
+                        filterType === 'mensual'
+                          ? 'bg-white text-[#4F46E5] shadow-3xs font-extrabold'
+                          : 'text-gray-500 hover:text-gray-900 bg-transparent'
+                      }`}
+                    >
+                      Mensual
+                    </button>
+                    <button
+                      onClick={() => { setFilterType('trimestral'); setSelectedQuarter('Q1'); }}
+                      className={`px-3 py-1 rounded-md transition cursor-pointer border-0 ${
+                        filterType === 'trimestral'
+                          ? 'bg-white text-[#4F46E5] shadow-3xs font-extrabold'
+                          : 'text-gray-500 hover:text-gray-900 bg-transparent'
+                      }`}
+                    >
+                      Trimestral
+                    </button>
+                    <button
+                      onClick={() => setFilterType('anual')}
+                      className={`px-3 py-1 rounded-md transition cursor-pointer border-0 ${
+                        filterType === 'anual'
+                          ? 'bg-white text-[#4F46E5] shadow-3xs font-extrabold'
+                          : 'text-gray-500 hover:text-gray-900 bg-transparent'
+                      }`}
+                    >
+                      Anual
+                    </button>
+                  </div>
+
+                  {filterType === 'mensual' && (
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-xs text-[#1A1D20] font-semibold focus:outline-none cursor-pointer"
+                    >
+                      <option value="Todos">Todos los Meses</option>
+                      {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {filterType === 'trimestral' && (
+                    <select
+                      value={selectedQuarter}
+                      onChange={(e) => setSelectedQuarter(e.target.value)}
+                      className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-xs text-[#1A1D20] font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="Q1">1° Trimestre (Ene - Mar)</option>
+                      <option value="Q2">2° Trimestre (Abr - Jun)</option>
+                      <option value="Q3">3° Trimestre (Jul - Sep)</option>
+                      <option value="Q4">4° Trimestre (Oct - Dic)</option>
+                    </select>
+                  )}
+
+                  {filterType === 'anual' && (
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-xs text-[#1A1D20] font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="2026">Año Fiscal 2026</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs">
                   <span className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 block">Total Facturado Emitido</span>
@@ -223,7 +349,7 @@ export default function BusinessAnswers({
                 <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-950 flex items-start gap-3 mt-2">
                   <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
-                    <strong>Impacto en Flujo de Caja:</strong> Hay clientes con pagos vencidos desde el mes de <strong>Enero</strong> (p.ej., Acme Corp S.A. y Gimnasio FitLife). Lucía está financiando la operación con su propio tiempo mientras los clientes retrasan los desembolsos.
+                    <strong>Impacto en Flujo de Caja:</strong> Hay clientes con pagos vencidos desde el mes de <strong>Enero</strong> (p.ej., Acme Corp S.A. y Gimnasio FitLife). Se está cubriendo la operación con tiempo de trabajo mientras ocurren retrasos en los desembolsos.
                   </div>
                 </div>
               </div>
@@ -272,7 +398,7 @@ export default function BusinessAnswers({
                     {maxHoursClient ? `${maxHoursClient.totalHours.toFixed(1)} Horas` : '0 Horas'}
                   </div>
                   <p className="text-[10px] text-gray-400 mt-2.5 leading-snug">
-                    Este cliente está acaparando toda la agenda operativa mensual de Lucía.
+                    Este cliente está acaparando la mayor parte de la agenda operativa mensual.
                   </p>
                 </div>
               </div>
@@ -285,7 +411,7 @@ export default function BusinessAnswers({
                 <p className="leading-relaxed text-gray-700">
                   {maxHoursClient && maxRevenueClient && maxHoursClient.client.id !== maxRevenueClient.client.id ? (
                     <span>
-                      ¡Alerta de asimetría! Mientras <strong>{maxRevenueClient.client.name}</strong> es quien más valor monetario inyecta al negocio ({formatCLP(maxRevenueClient.totalRevenue)}), <strong>{maxHoursClient.client.name}</strong> es el que vacía tus recursos temporales acaparando <strong>{maxHoursClient.totalHours.toFixed(1)} horas de trabajo</strong> logradas. Esto explica por qué Lucía se siente sobrepasada pero con poco flujo de caja.
+                      ¡Alerta de asimetría! Mientras <strong>{maxRevenueClient.client.name}</strong> es quien más valor monetario inyecta al negocio ({formatCLP(maxRevenueClient.totalRevenue)}), <strong>{maxHoursClient.client.name}</strong> es el que vacía tus recursos temporales acaparando <strong>{maxHoursClient.totalHours.toFixed(1)} horas de trabajo</strong> logradas. Esto explica el escenario de alta carga de trabajo técnica pero con limitado flujo de caja inmediato.
                     </span>
                   ) : (
                     <span>
@@ -357,7 +483,7 @@ export default function BusinessAnswers({
               </div>
 
               <div className="p-4 bg-indigo-50/30 border border-indigo-100 rounded-xl text-xs text-indigo-900 mt-2 font-medium">
-                <strong>Análisis Diagnóstico:</strong> <em>Boutique Flores de Chile</em> rinde una espectacular tarifa pues se cobraron {formatCLP(clientAnalysisList.find(c => c.client.id === 'c3')?.totalPaidRevenue || 0)} con apenas {clientAnalysisList.find(c => c.client.id === 'c3')?.totalHours.toFixed(1)} horas de trabajo real. En cambio, <em>Estudio Creativo Alpha</em> representa un desastre de rentabilidad, con apenas {formatCLP(clientAnalysisList.find(c => c.client.id === 'c2')?.totalPaidRevenue || 0)} cobrados para {clientAnalysisList.find(c => c.client.id === 'c2')?.totalHours.toFixed(1)} horas invertidas. ¡Lucía debe renegociar las tarifas de Alpha urgentemente!
+                <strong>Análisis Diagnóstico de Rentabilidad:</strong> Permite identificar de manera inequívoca qué clientes rinden tarifas excepcionales y cuáles representan retrasos u horas extraordinarias desmedidas en relación a los ingresos. Entrega argumentos técnicos e incontestables para respaldar la readecuación de honorarios.
               </div>
             </div>
           )}
